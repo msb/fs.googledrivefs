@@ -529,3 +529,25 @@ class GoogleDriveFS(FS):
 				fileId=sourceItem["id"],
 				removeParents=IdFromPath(dirname(path))["id"],
 				body={}).execute(num_retries=self.retryCount)
+				body={"name": basename(dst_path)}).execute()
+
+	def copydir(self, src_path, dst_path, create=False):
+		assert False
+		info(f"copydir: {src_path} -> {dst_path}, {create}")
+		_CheckPath(src_path)
+		_CheckPath(dst_path)
+		with self._lock:
+			dstPathItem = self._itemFromPath(dst_path)
+			if dstPathItem is None:
+				if create is False:
+					raise ResourceNotFound(dst_path)
+				else:
+					self.makedirs(dst_path)
+					dstPathItem = self._itemFromPath(dst_path)
+			srcItem = self._itemFromPath(src_path)
+			children = self._childrenById(srcItem["id"])
+			batchRequest = BatchHttpRequest()
+			for child in children:
+				newMetadata = {"parents": [dstPathItem["id"]]}
+				batchRequest.add(self.drive().copy(fileId=child["id"], body=newMetadata))
+			batchRequest.execute()
