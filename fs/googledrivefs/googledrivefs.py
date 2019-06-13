@@ -133,7 +133,7 @@ class GoogleDriveFS(FS):
 		return "<GoogleDriveFS>"
 
 	def _fileQuery(self, query):
-		allFields = "nextPageToken,files(id,mimeType,kind,name,createdTime,modifiedTime,size,permissions)"
+		allFields = "nextPageToken,files(id,mimeType,kind,name,createdTime,modifiedTime,size,permissions,appProperties,contentHints)"
 		response = self.drive.files().list(q=query, fields=allFields).execute()
 		result = response["files"]
 		while "nextPageToken" in response:
@@ -214,6 +214,10 @@ class GoogleDriveFS(FS):
 				"is_shared": None if isRoot else len(metadata["permissions"]) > 1
 			}
 		}
+		if "contentHints" in metadata and "indexableText" in metadata["contentHints"]:
+			rawInfo.update({"google": {"indexableText": metadata["contentHints"]["indexableText"]}})
+		if "appProperties" in metadata:
+			rawInfo.update({"google": {"appProperties": metadata["appProperties"]}})
 		# there is also file-type-specific metadata like imageMediaMetadata
 		return Info(rawInfo)
 
@@ -231,6 +235,15 @@ class GoogleDriveFS(FS):
 			metadata = self._itemFromPath(path)
 			if metadata is None or isinstance(metadata, list):
 				raise ResourceNotFound(path=path)
+			updateMetadata = {}
+			for namespace in info:
+				for name, value in info[namespace].items():
+					if namespace == "google":
+						if name == "indexableText":
+							updateMetadata["contentHints"] = {"indexableText": value}
+						elif name == "appProperties":
+							updateMetadata["appProperties"] = value
+			self.drive.files().update(fileId=metadata["id"], body=updateMetadata)
 
 	def share(self, path, email=None, role='reader'):
 		"""
