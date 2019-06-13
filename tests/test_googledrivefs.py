@@ -55,6 +55,29 @@ class TestGoogleDriveFS(FSTestCases, TestCase):
 		files = self.fs.listdir("/")
 		self.assertEqual(len(files), fileCount)
 
+	def test_read_write_google_metadata(self):
+		filename = "file-for-holding-google-metadata"
+		self.fs.writetext(filename, "boogle boggle")
+
+		info_ = self.fs.getinfo(filename)
+		self.assertIsNone(info_.get("google", "indexableText"))
+		self.assertIsNone(info_.get("google", "appProperties"))
+
+		self.fs.setinfo(filename, {"google": {"appProperties": {"a": "a value"}}})
+
+		info_ = self.fs.getinfo(filename)
+		from pprint import pformat
+		info(pformat(info_.raw))
+		# self.assertEqual(info_.get("google", "indexableText"), "<author>Gilliam</author>")
+		self.assertEqual(info_.get("google", "appProperties"), {"a": "a value"})
+
+		self.fs.setinfo(filename, {"google": {"indexableText": "<author>Gillaim</author>"}})
+
+		info_ = self.fs.getinfo(filename)
+		info(info_.raw)
+		# self.assertEqual(info_.get("google", "indexableText"), "boogle")
+		self.assertIsNone(info_.get("google", "appProperties"))
+
 def testRoot(): # pylint: disable=no-self-use
 	fullFS = FullFS()
 	info(fullFS.listdir("/"))
