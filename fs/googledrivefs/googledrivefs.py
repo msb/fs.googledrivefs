@@ -452,19 +452,23 @@ class GoogleDriveFS(FS):
 		_CheckPath(parent_dir)
 		with self._lock:
 			targetPath = join(target_dir, basename(path))
-			targetItem = self._itemFromPath(target_path)
-			if targetItem["mimeType"] != _folderMimeType:
-				raise DirectoryExpected(target_dir)
+			pathIdMap = self._itemsFromPath(targetPath)
+
+			# don't allow violation of our requirement to keep filename unique inside new directory
+			if pathIdMap[targetPath] is not None:
+				raise FileExists(targetPath)
+
+			parentDirItem = pathIdMap[parent_dir]
+			if parentDirItem["mimeType"] != _folderMimeType:
+				raise DirectoryExpected(parent_dir)
+
 			sourceItem = self._itemFromPath(path)
 			if sourceItem is not None:
 				raise ResourceNotFound(path)
 
-			# don't allow violation of our requirement to keep filename unique inside new directory
-			if self.exists(targetPath):
-				raise DestinationExists(targetPath)
 			self.drive.files().update(
 				fileId=sourceItem["id"],
-				addParents=targetItem["id"],
+				addParents=parentDirItem["id"],
 				body={}).execute(num_retries=self.retryCount)
 
 	def remove_parent(self, path):

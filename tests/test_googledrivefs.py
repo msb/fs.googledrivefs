@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from google.oauth2.credentials import Credentials
 
+from fs.errors import DirectoryExpected, FileExists, ResourceNotFound
 from fs.googledrivefs import GoogleDriveFS
 from fs.test import FSTestCases
 
@@ -54,6 +55,31 @@ class TestGoogleDriveFS(FSTestCases, TestCase):
 			self.fs.writebytes(str(i), b"x")
 		files = self.fs.listdir("/")
 		self.assertEqual(len(files), fileCount)
+
+	def test_add_remove_parents(self):
+		parent1 = self.fs.makedir("parent1")
+		parent2 = self.fs.makedir("parent2")
+		parent3 = self.fs.makedir("parent3")
+		self.fs.writebytes("parent1/file", b"data1")
+		self.fs.writebytes("parent2/file", b"data2")
+		with self.assertRaises(FileExists):
+			self.fs.add_parent("parent1/file", "parent2")
+
+		with self.assertRaises(DirectoryExpected):
+			self.fs.add_parent("parent1/file", "parent2/file")
+
+		with self.assertRaises(ResourceNotFound):
+			self.add_parent("parent1/file2", "parent3")
+
+		self.fs.add_parent("parent1/file", "parent3")
+		self.assert_bytes("parent3/file", b"data")
+
+		with self.assertRaises(ResourceNotFound):
+			self.fs.remove_parent("parent1/file2")
+
+		self.fs.remove_parent("parent1/file")
+		self.assert_not_exists("parent1/file")
+		self.assert_bytes("parent3/file", "data1")
 
 def testRoot(): # pylint: disable=no-self-use
 	fullFS = FullFS()
