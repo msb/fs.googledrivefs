@@ -9,6 +9,7 @@ from google.oauth2.credentials import Credentials
 
 from fs.errors import DirectoryExpected, FileExists, ResourceNotFound
 from fs.googledrivefs import GoogleDriveFS
+from fs.path import join
 from fs.test import FSTestCases
 
 _safeDirForTests = "/test-googledrivefs"
@@ -57,30 +58,45 @@ class TestGoogleDriveFS(FSTestCases, TestCase):
 		self.assertEqual(len(files), fileCount)
 
 	def test_add_remove_parents(self):
-		parent1 = self.fs.makedir("parent1")
-		parent2 = self.fs.makedir("parent2")
-		parent3 = self.fs.makedir("parent3")
-		self.fs.writebytes("parent1/file", b"data1")
-		self.fs.writebytes("parent2/file", b"data2")
+		fullFS = FullFS()
+		testDir = join(_safeDirForTests, str(uuid4()))
+		fullFS.makedirs(testDir)
+		fullFS.makedir(join(testDir, "parent1"))
+		fullFS.makedir(join(testDir, "parent2"))
+		fullFS.makedir(join(testDir, "parent3"))
+		fullFS.writebytes(join(testDir, "parent1/file"), b"data1")
+		fullFS.writebytes(join(testDir, "parent2/file"), b"data2")
+
+		# can't link into a parent where there's already a file there
 		with self.assertRaises(FileExists):
-			self.fs.add_parent("parent1/file", "parent2")
+			fullFS.add_parent(join(testDir, "parent1/file"), join(testDir, "parent2"))
 
+		# can't add a parent which is a file
 		with self.assertRaises(DirectoryExpected):
-			self.fs.add_parent("parent1/file", "parent2/file")
+			fullFS.add_parent(join(testDir, "parent1/file"), join(testDir, "parent2/file"))
 
+		# can't add a parent which doesn't exist
 		with self.assertRaises(ResourceNotFound):
-			self.add_parent("parent1/file2", "parent3")
+			fullFS.add_parent(join(testDir, "parent1/file2"), join(testDir, "parent4"))
 
-		self.fs.add_parent("parent1/file", "parent3")
-		self.assert_bytes("parent3/file", b"data")
-
+		# can't add a parent to a file that doesn't exist
 		with self.assertRaises(ResourceNotFound):
-			self.fs.remove_parent("parent1/file2")
+			fullFS.add_parent(join(testDir, "parent1/file2"), join(testDir, "parent3"))
 
-		self.fs.remove_parent("parent1/file")
-		self.assert_not_exists("parent1/file")
-		self.assert_bytes("parent3/file", "data1")
+		# when linking works, the data is the same
+		fullFS.add_parent(join(testDir, "parent1/file"), join(testDir, "parent3"))
+		self.assert_bytes(join(testDir, "parent3/file"), b"data1")
 
-def testRoot(): # pylint: disable=no-self-use
+		# can't remove a parent from a file that doesn't exist
+		with self.assertRaises(ResourceNotFound):
+			fullFS.remove_parent(join(testDir, "parent1/file2"))
+
+		# successful remove_parent call removes one file and leaves the other the same
+		fullFS.remove_parent(join(testDir, "parent1/file"))
+		self.assert_not_exists(join(testDir, "parent1/file"))
+		self.assert_bytes(join(testDir, "parent3/file"), "data1")
+		fullFS.removetree(testDir)
+
+def test_root(): # pylint: disable=no-self-use
 	fullFS = FullFS()
 	info(fullFS.listdir("/"))

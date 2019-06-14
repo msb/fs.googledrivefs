@@ -15,7 +15,7 @@ from fs.errors import DestinationExists, DirectoryExists, DirectoryExpected, Dir
 from fs.info import Info
 from fs.iotools import RawWrapper
 from fs.mode import Mode
-from fs.path import basename, dirname, iteratepath
+from fs.path import basename, dirname, iteratepath, join
 from fs.subfs import SubFS
 from fs.time import datetime_to_epoch
 
@@ -451,19 +451,22 @@ class GoogleDriveFS(FS):
 		_CheckPath(path)
 		_CheckPath(parent_dir)
 		with self._lock:
-			targetPath = join(target_dir, basename(path))
+			targetPath = join(parent_dir, basename(path))
 			pathIdMap = self._itemsFromPath(targetPath)
 
 			# don't allow violation of our requirement to keep filename unique inside new directory
-			if pathIdMap[targetPath] is not None:
+			if pathIdMap.get(targetPath, None) is not None:
 				raise FileExists(targetPath)
 
-			parentDirItem = pathIdMap[parent_dir]
+			parentDirItem = pathIdMap.get(parent_dir, None)
+			if parentDirItem is None:
+				raise ResourceNotFound(parent_dir)
+
 			if parentDirItem["mimeType"] != _folderMimeType:
 				raise DirectoryExpected(parent_dir)
 
 			sourceItem = self._itemFromPath(path)
-			if sourceItem is not None:
+			if sourceItem is None:
 				raise ResourceNotFound(path)
 
 			self.drive.files().update(
@@ -476,7 +479,8 @@ class GoogleDriveFS(FS):
 		_CheckPath(path)
 		with self._lock:
 			pathIdMap = self._itemsFromPath(path)
-			if pathIdMap.get(path, None) is None:
+			sourceItem = pathIdMap.get(path, None)
+			if sourceItem is None:
 				raise ResourceNotFound(path)
 			self.drive.files().update(
 				fileId=sourceItem["id"],
