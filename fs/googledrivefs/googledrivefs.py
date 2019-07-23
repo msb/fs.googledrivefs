@@ -43,6 +43,7 @@ def _IdFromPath(path, pathIdMap):
 		info(f"Looking up {path}")
 		from pprint import pformat
 		info(f"Not found in {pformat(list(pathIdMap.keys()))}")
+	return result
 
 # TODO - switch to MediaIoBaseUpload and use BytesIO
 class _UploadOnClose(RawWrapper):
