@@ -1,4 +1,3 @@
-from contextlib import suppress
 from json import load, loads
 from logging import info
 from os import environ
@@ -9,7 +8,6 @@ from google.oauth2.credentials import Credentials
 
 from fs.errors import DirectoryExpected, FileExists, ResourceNotFound
 from fs.googledrivefs import GoogleDriveFS, SubGoogleDriveFS
-from fs.path import join
 from fs.test import FSTestCases
 
 _safeDirForTests = "/test-googledrivefs"
