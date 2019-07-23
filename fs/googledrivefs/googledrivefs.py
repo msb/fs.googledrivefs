@@ -120,6 +120,15 @@ class _UploadOnClose(RawWrapper):
 					debug(f"Updated file to empty: {updatedFile}")
 		remove(self.localPath)
 
+class SubGoogleDriveFS(SubFS):
+	def add_parent(self, path, parent_dir):
+		fs, delegatePath = self.delegate_path(path)
+		fs, delegateParentDir = self.delegate_path(parent_dir)
+		fs.add_parent(delegatePath, delegateParentDir)
+
+	def remove_parent(self, path):
+		fs, delegatePath = self.delegate_path(path)
+		fs.remove_parent(delegatePath)
 
 class GoogleDriveFS(FS):
 	def __init__(self, credentials):
@@ -496,5 +505,5 @@ class GoogleDriveFS(FS):
 				raise ResourceNotFound(path)
 			self.drive.files().update(
 				fileId=sourceItem["id"],
-				removeParents=IdFromPath(dirname(path)),
+				removeParents=IdFromPath(dirname(path))["id"],
 				body={}).execute(num_retries=self.retryCount)
