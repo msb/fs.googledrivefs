@@ -2,7 +2,7 @@ from __future__ import absolute_import
 
 from datetime import datetime
 from io import BytesIO, SEEK_END
-from logging import debug, info
+from logging import debug, error, info
 from os import close, remove
 from os.path import splitext
 from tempfile import mkstemp
@@ -44,6 +44,13 @@ def _IdFromPath(path, pathIdMap):
 		from pprint import pformat
 		info(f"Not found in {pformat(list(pathIdMap.keys()))}")
 	return result
+
+class _CallbackSync:
+	def __call__(self, request_id, response, exception):
+		if exception is not None:
+			error(exception)
+			return
+		info(f"req: {request_id}, response: {response}")
 
 # TODO - switch to MediaIoBaseUpload and use BytesIO
 class _UploadOnClose(RawWrapper):
@@ -121,6 +128,11 @@ class _UploadOnClose(RawWrapper):
 		remove(self.localPath)
 
 class SubGoogleDriveFS(SubFS):
+	def copydir(self, src_path, dst_path, create=False):
+		_, delegateSrcPath = self.delegate_path(src_path)
+		fs, delegateDstPath = self.delegate_path(dst_path)
+		fs.copydir(delegateSrcPath, delegateDstPath, create)
+
 	def add_parent(self, path, parent_dir):
 		fs, delegatePath = self.delegate_path(path)
 		fs, delegateParentDir = self.delegate_path(parent_dir)
@@ -468,7 +480,6 @@ class GoogleDriveFS(FS):
 				body={"name": basename(dst_path)}).execute()
 
 	def copydir(self, src_path, dst_path, create=False):
-		assert False
 		info(f"copydir: {src_path} -> {dst_path}, {create}")
 		_CheckPath(src_path)
 		_CheckPath(dst_path)
@@ -482,12 +493,13 @@ class GoogleDriveFS(FS):
 					dstPathItem = self._itemFromPath(dst_path)
 			srcItem = self._itemFromPath(src_path)
 			children = self._childrenById(srcItem["id"])
-			batchRequest = BatchHttpRequest()
+			callbacks = _CallbackSync()
+			batchRequest = self.drive.new_batch_http_request(callback=callbacks)
 			for child in children:
 				newMetadata = {"parents": [dstPathItem["id"]]}
-				batchRequest.add(self.drive().copy(fileId=child["id"], body=newMetadata))
+				batchRequest.add(self.drive.files().copy(fileId=child["id"], body=newMetadata))
 			batchRequest.execute()
-				body={"name": basename(dst_path)}).execute(num_retries=self.retryCount)
+			
 
 	def add_parent(self, path, parent_dir):
 		info(f"add_parent: {path} -> {parent_dir}")
@@ -529,25 +541,3 @@ class GoogleDriveFS(FS):
 				fileId=sourceItem["id"],
 				removeParents=IdFromPath(dirname(path))["id"],
 				body={}).execute(num_retries=self.retryCount)
-				body={"name": basename(dst_path)}).execute()
-
-	def copydir(self, src_path, dst_path, create=False):
-		assert False
-		info(f"copydir: {src_path} -> {dst_path}, {create}")
-		_CheckPath(src_path)
-		_CheckPath(dst_path)
-		with self._lock:
-			dstPathItem = self._itemFromPath(dst_path)
-			if dstPathItem is None:
-				if create is False:
-					raise ResourceNotFound(dst_path)
-				else:
-					self.makedirs(dst_path)
-					dstPathItem = self._itemFromPath(dst_path)
-			srcItem = self._itemFromPath(src_path)
-			children = self._childrenById(srcItem["id"])
-			batchRequest = BatchHttpRequest()
-			for child in children:
-				newMetadata = {"parents": [dstPathItem["id"]]}
-				batchRequest.add(self.drive().copy(fileId=child["id"], body=newMetadata))
-			batchRequest.execute()
