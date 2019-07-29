@@ -131,6 +131,8 @@ class SubGoogleDriveFS(SubFS):
 		fs.remove_parent(delegatePath)
 
 class GoogleDriveFS(FS):
+	subfs_class = SubGoogleDriveFS
+
 	def __init__(self, credentials):
 		super().__init__()
 
@@ -303,7 +305,7 @@ class GoogleDriveFS(FS):
 	def _create_subdirectory(self, name, path, parents):
 		newMetadata = {"name": basename(name), "parents": parents, "mimeType": _folderMimeType}
 		self.drive.files().create(body=newMetadata, fields="id").execute(num_retries=self.retryCount)
-		return SubFS(self, path)
+		return SubGoogleDriveFS(self, path)
 
 	def makedir(self, path, permissions=None, recreate=False):
 		_CheckPath(path)

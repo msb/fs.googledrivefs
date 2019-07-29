@@ -6,9 +6,11 @@ from uuid import uuid4
 
 from google.oauth2.credentials import Credentials
 
+from fs import __version__ as fs_version
 from fs.errors import DirectoryExpected, FileExists, ResourceNotFound
 from fs.googledrivefs import GoogleDriveFS, SubGoogleDriveFS
 from fs.test import FSTestCases
+from pkg_resources import parse_version
 
 _safeDirForTests = "/test-googledrivefs"
 
@@ -29,8 +31,13 @@ class TestGoogleDriveFS(FSTestCases, TestCase):
 	def make_fs(self):
 		self.fullFS = FullFS()
 		self.testSubdir = f"{_safeDirForTests}/{uuid4()}"
-		_ = self.fullFS.makedirs(self.testSubdir)
-		return self.fullFS.opendir(self.testSubdir, factory=SubGoogleDriveFS)
+		testSubdirFS = self.fullFS.makedirs(self.testSubdir)
+		if parse_version(fs_version) >= parse_version("2.4.10"):
+			return testSubdirFS
+		else:
+			# use the following if fs < 2.4.10
+			warning("Using opendir")
+			return self.fullFS.opendir(self.testSubdir, factory=SubGoogleDriveFS)
 
 	def destroy_fs(self, _):
 		self.fullFS.removetree(self.testSubdir)
