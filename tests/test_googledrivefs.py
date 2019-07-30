@@ -10,7 +10,7 @@ from fs import __version__ as fs_version
 from fs.errors import DirectoryExpected, FileExists, ResourceNotFound
 from fs.googledrivefs import GoogleDriveFS, SubGoogleDriveFS
 from fs.test import FSTestCases
-from pkg_resources import parse_version
+from pkg_resources import parse_version # pylint: disable=wrong-import-order
 
 _safeDirForTests = "/test-googledrivefs"
 
@@ -32,12 +32,10 @@ class TestGoogleDriveFS(FSTestCases, TestCase):
 		self.fullFS = FullFS()
 		self.testSubdir = f"{_safeDirForTests}/{uuid4()}"
 		testSubdirFS = self.fullFS.makedirs(self.testSubdir)
-		if parse_version(fs_version) >= parse_version("2.4.10"):
-			return testSubdirFS
-		else:
+		if parse_version(fs_version) < parse_version("2.4.10"):
 			# use the following if fs < 2.4.10
-			warning("Using opendir")
 			return self.fullFS.opendir(self.testSubdir, factory=SubGoogleDriveFS)
+		return testSubdirFS
 
 	def destroy_fs(self, _):
 		self.fullFS.removetree(self.testSubdir)
