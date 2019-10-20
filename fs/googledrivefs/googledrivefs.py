@@ -1,6 +1,6 @@
 from __future__ import absolute_import
 
-from datetime import datetime
+from datetime import datetime, timezone
 from io import BytesIO, SEEK_END
 from logging import debug, info
 from os import close, remove
@@ -17,7 +17,7 @@ from fs.iotools import RawWrapper
 from fs.mode import Mode
 from fs.path import abspath, basename, dirname, iteratepath, join
 from fs.subfs import SubFS
-from fs.time import datetime_to_epoch
+from fs.time import datetime_to_epoch, epoch_to_datetime
 
 _fileMimeType = "application/vnd.google-apps.file"
 _folderMimeType = "application/vnd.google-apps.folder"
@@ -252,6 +252,21 @@ class GoogleDriveFS(FS):
 			metadata = self._itemFromPath(path)
 			if metadata is None or isinstance(metadata, list):
 				raise ResourceNotFound(path=path)
+			updatedData = {}
+
+			for namespace in info:
+				for name, value in info[namespace].items():
+					if namespace != "details":
+						continue
+					if name == "created":
+						# incoming datetimes should be utc timestamps, OneDrive expects naive UTC datetimes
+						if "fileSystemInfo" not in updatedData:
+							updatedData["fileSystemInfo"] = {}
+						updatedData["fileSystemInfo"]["createdDateTime"] = epoch_to_datetime(value).replace(tzinfo=None).isoformat() + "Z"
+					elif name == "modified":
+						# incoming datetimes should be utc timestamps, Google Drive expects RFC 3339
+						updatedData["modifiedTime"] = epoch_to_datetime(value).replace(tzinfo=timezone.utc).isoformat()
+			self.drive.files().update(fileId=metadata["id"], body=updatedData).execute(num_retries=self.retryCount)
 
 	def share(self, path, email=None, role='reader'):
 		"""
