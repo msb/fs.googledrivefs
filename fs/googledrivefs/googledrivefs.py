@@ -127,6 +127,9 @@ class _UploadOnClose(RawWrapper):
 					debug(f"Updated file to empty: {updatedFile}")
 		remove(self.localPath)
 
+# the metadata fields to request when querying files
+_FILE_METADATA_FIELDS = 'id,mimeType,kind,name,createdTime,modifiedTime,size,permissions'
+
 class SubGoogleDriveFS(SubFS):
 	def add_parent(self, path, parent_dir):
 		fs, delegatePath = self.delegate_path(path)
@@ -159,7 +162,7 @@ class GoogleDriveFS(FS):
 		return "<GoogleDriveFS>"
 
 	def _fileQuery(self, query):
-		allFields = "nextPageToken,files(id,mimeType,kind,name,createdTime,modifiedTime,size,permissions)"
+		allFields = f"nextPageToken,files({_FILE_METADATA_FIELDS})"
 		response = self.drive.files().list(q=query, fields=allFields).execute(num_retries=self.retryCount)
 		result = response["files"]
 		while "nextPageToken" in response:
@@ -168,6 +171,10 @@ class GoogleDriveFS(FS):
 		return result
 
 	def _childByName(self, parentId, childName):
+		# This allows you to specify a folder/file with a file ID - 
+		# useful when your service account doesn't have root permission.
+		if childName.startswith('id|'):
+			return self.drive.files().get(fileId=childName[3:], fields=_FILE_METADATA_FIELDS).execute()
 		# this "name=" clause seems to be case-insensitive, which means it's easier to model this
 		# as a case-insensitive filesystem
 		if not parentId:
