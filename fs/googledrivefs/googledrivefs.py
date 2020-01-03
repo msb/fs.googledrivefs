@@ -127,6 +127,9 @@ class SubGoogleDriveFS(SubFS):
 		fs, delegatePath = self.delegate_path(path)
 		fs.remove_parent(delegatePath)
 
+# the metadata fields to request when querying files
+_FILE_METADATA_FIELDS = 'id,mimeType,kind,name,createdTime,modifiedTime,size,permissions,appProperties,contentHints'
+
 class GoogleDriveFS(FS):
 	subfs_class = SubGoogleDriveFS
 
@@ -151,7 +154,7 @@ class GoogleDriveFS(FS):
 		return "<GoogleDriveFS>"
 
 	def _fileQuery(self, query):
-		allFields = "nextPageToken,files(id,mimeType,kind,name,createdTime,modifiedTime,size,permissions,appProperties,contentHints)"
+		allFields = f"nextPageToken,files({_FILE_METADATA_FIELDS})"
 		response = self.drive.files().list(q=query, fields=allFields).execute(num_retries=self.retryCount)
 		result = response["files"]
 		while "nextPageToken" in response:
@@ -160,6 +163,10 @@ class GoogleDriveFS(FS):
 		return result
 
 	def _childByName(self, parentId, childName):
+		# This allows you to specify a folder/file with a file ID - 
+		# useful when your service account doesn't have root permission.
+		if childName.startswith('{') and childName.endswith('}'):
+			return self.drive.files().get(fileId=childName[1:][:-1], fields=_FILE_METADATA_FIELDS).execute()
 		# this "name=" clause seems to be case-insensitive, which means it's easier to model this
 		# as a case-insensitive filesystem
 		if not parentId:
